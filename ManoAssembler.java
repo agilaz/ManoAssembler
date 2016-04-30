@@ -1,7 +1,6 @@
 import java.util.*;
 import java.io.*;
-//TODO: Format output properly, implement file i/o,
-//check for syntax errors instead of assuming proper syntax.
+//TODO: check for syntax errors instead of assuming proper syntax, comment everything
 
 /*
 Line structure (ignoring comments):
@@ -69,11 +68,11 @@ public class ManoAssembler {
     }
     
     //First pass: associate labels with addresses
-    //System.out.println("Resolving addresses:");
     for (ArrayList<String> splitCommand : splitCommands) {
       if(splitCommand.isEmpty()) continue;
       String thisWord = splitCommand.get(0);
       if (!Symbol.isReserved(thisWord)) {
+        //System.out.println("Label " + thisWord + ": " + currentAddress);
         Symbol.addLabel(thisWord, currentAddress);
         splitCommand.remove(thisWord);
       }
@@ -82,6 +81,7 @@ public class ManoAssembler {
       if (thisWord.equals("ORG")) {
         int orgPos = Integer.parseInt(splitCommand.get(1), 16);
         reposition(orgPos);
+        continue;
       }
       currentAddress++;
     }
