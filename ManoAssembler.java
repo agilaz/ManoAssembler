@@ -35,6 +35,7 @@ public class ManoAssembler {
   static ArrayList<String> originalCommands = new ArrayList<String>();
   static ArrayList<ArrayList<String>> splitCommands = new ArrayList<ArrayList<String>>();
   static ArrayList<String> hexCodes = new ArrayList<String>();
+  static ArrayList<String> numberedCommands = new ArrayList<String>();
   static HashMap<String, String> labels = new HashMap<String, String>();
   public static void main(String[] args) {
     if(args.length < 1) {
@@ -56,8 +57,8 @@ public class ManoAssembler {
         splitCommand.removeAll(Collections.singleton(""));
         //if (splitCommand.isEmpty()) System.out.println(splitCommand + " is empty.");
         splitCommands.add(splitCommand);
-        for(String s: splitCommand) System.out.println("*"+s+"*");
-        System.out.println(splitCommands.get(splitCommands.size()-1));
+        //for(String s: splitCommand) System.out.println("*"+s+"*");
+        //System.out.println(splitCommands.get(splitCommands.size()-1));
       }
     } catch (Exception e) {
       e.printStackTrace();
@@ -68,8 +69,8 @@ public class ManoAssembler {
     }
     
     //First pass: associate labels with addresses
-    System.out.println("Resolving addresses:");
-    for (ArrayList<String> splitCommand:splitCommands) {
+    //System.out.println("Resolving addresses:");
+    for (ArrayList<String> splitCommand : splitCommands) {
       if(splitCommand.isEmpty()) continue;
       String thisWord = splitCommand.get(0);
       if (!Symbol.isReserved(thisWord)) {
@@ -87,8 +88,12 @@ public class ManoAssembler {
     
     currentAddress = 0;
     //Second pass: generate hexCodes from commands
-    for (ArrayList<String> splitCommand:splitCommands) {
-      if(splitCommand.size() == 0) continue;
+    for (int i = 0; i < splitCommands.size(); i++) {
+      ArrayList<String> splitCommand = splitCommands.get(i);
+      if(splitCommand.size() == 0) {
+        numberedCommands.add("");
+        continue;
+      }
       //Addressing mode
       //boolean isDirect = command.endsWith("I") ? false : true;
       
@@ -96,12 +101,13 @@ public class ManoAssembler {
       //String hexCode = ""; //Full 4-digit hex code for the current instruction
       //String address = ""; //3-bit hex code for the address, used for building memory-ref hexCodes
       
-      System.out.println("Command: " + splitCommand);
+      //System.out.println("Command: " + splitCommand);
       String thisWord = splitCommand.get(0);
       //Change writing address
       if (thisWord.equals("ORG")) {
         int orgPos = Integer.parseInt(splitCommand.get(1), 16);
         reposition(orgPos);
+        numberedCommands.add("\t" + originalCommands.get(i));
         continue;
       }
       else if (Symbol.isCommand(thisWord)) {
@@ -121,25 +127,37 @@ public class ManoAssembler {
       else if (thisWord.equals("HEX")) {
         hexCode = Integer.parseInt(splitCommand.get(1), 16);
       }
-      String hexString = Integer.toHexString(hexCode).toUpperCase();
-      while (hexString.length() > 4) hexString = hexString.substring(1, hexString.length());
-      while (hexString.length() < 4) {
-        if (hexCode >= 0)
-          hexString = "0" + hexString;
-        else
-          hexString = "F" + hexString;
-      }
-      System.out.println("Hex string: " + hexString);
+      String hexString = makeHexString(hexCode, 4);
+      //System.out.println("Hex string: " + hexString);
       //In case the arrayList is full, expand by adding XXXX
       while(hexCodes.size() <= currentAddress) {
       hexCodes.add("XXXX");
       }
       hexCodes.set(currentAddress, hexString);
       //Go to next address
+      String currentHexAddress = makeHexString(currentAddress, 3);
+      numberedCommands.add(currentHexAddress + ": " + hexString + "\t" + originalCommands.get(i));
       currentAddress++;
     }
     
-    for(String h : hexCodes) {
+    String numberedOut = inputName;
+    int periodPos = numberedOut.indexOf(".");
+    if (periodPos >= 0) {
+      numberedOut = numberedOut.substring(0, periodPos) + "-numbered" + numberedOut.substring(periodPos,numberedOut.length());
+    } else numberedOut += "-numbered";
+    writeToFile(numberedOut, numberedCommands, System.lineSeparator());
+    
+    String assembledOut = inputName;
+    periodPos = assembledOut.indexOf(".");
+    if (periodPos >= 0) {
+      assembledOut = assembledOut.substring(0, periodPos) + "-assembled" + assembledOut.substring(periodPos,assembledOut.length());
+    } else assembledOut += "-assembled";
+    writeToFile(assembledOut, hexCodes, " ");
+    
+    for (String l : numberedCommands) {
+      System.out.println(l);
+    }
+    for (String h : hexCodes) {
       //Print hex codes separated by spaces
       System.out.print(h + " ");
     }
@@ -154,49 +172,31 @@ public class ManoAssembler {
     }
   }
   
-  //Grab the label from a command, translate it to the corresponding hex address
-  private static String resolveAddress(String command, String commandType) {
-    //Assume that the label starts after "<command> "
-    int labelStartIndex = command.indexOf(commandType) + commandType.length() + 1;
-    //Label ends at the next space or at the end of the string
-    int labelEndIndex = command.indexOf(" ", labelStartIndex);
-    if (labelEndIndex == -1) labelEndIndex = command.length();
-    String label = command.substring(labelStartIndex, labelEndIndex);
-    //Grab the address corresponding to this label (null if this label does not exist)
-    String address = labels.get(label);
-    System.out.println("Label: " + label + ", address: " + address);
-    return address;
+  private static String makeHexString(int inNumber, int stringLength) {
+    String hexString = Integer.toHexString(inNumber).toUpperCase();
+    while (hexString.length() > stringLength) hexString = hexString.substring(1, hexString.length());
+    while (hexString.length() < stringLength) {
+      if (inNumber >= 0)
+        hexString = "0" + hexString;
+      else
+        hexString = "F" + hexString;
+    }
+    return hexString;
   }
   
-  //Convert decimal number into hexidecimal address (string)
-  private static String makeHexAddress(int address) {
-    String hexAddress = Integer.toHexString(address);
-    //Pad with zeros and remove leading digits to generate a 12-bit hex address
-    while (hexAddress.length() < 3) hexAddress = "0" + hexAddress;
-    while (hexAddress.length() > 3) hexAddress = hexAddress.substring(1, hexAddress.length());
-    hexAddress = hexAddress.toUpperCase();
-    return hexAddress;
-  }
-  
-  //Convert a decimal number into a hexidecimal string
-  private static String decToHex(String command) {
-    //Assume that the number starts after "DEC " and ends at the next space (or the end of the string)
-    int numberStartIndex = command.indexOf("DEC") + 4;
-    int numberEndIndex = command.indexOf(" ", numberStartIndex);
-    if (numberEndIndex == -1) numberEndIndex = command.length();
-    int dec = Integer.parseInt(command.substring(numberStartIndex, numberEndIndex));
-
-    String hex = Integer.toHexString(dec);
-    //Pad with zeros if necessary
-    while(hex.length() < 4) {
-      hex = "0" + hex;
+  private static void writeToFile(String fileName, ArrayList<String> content, String delimiter) {
+    Writer writer = null;
+    try {
+      writer = new BufferedWriter(new OutputStreamWriter(
+        new FileOutputStream(fileName), "utf-8"));
+      for(String s : content) {
+        writer.write(s);
+        writer.write(delimiter);
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      try {writer.close();} catch(IOException e) {e.printStackTrace();}
     }
-    //Trim away leading digits if necessary (i.e. FFFFF1B5 -> F1B5)
-    while(hex.length() > 4) {
-      hex = hex.substring(1,hex.length());
-    }
-    hex = hex.toUpperCase();
-    System.out.println(command + " -> HEX " + hex);
-    return hex;
   }
 }
