@@ -1,5 +1,8 @@
 import java.util.*;
 import java.io.*;
+//TODO: Format output properly, implement file i/o,
+//check for syntax errors instead of assuming proper syntax.
+
 /*
 Line structure (ignoring comments):
 
@@ -50,7 +53,10 @@ public class ManoAssembler {
         if(command.contains("/"))
           command = command.substring(0, command.indexOf("/"));
         ArrayList<String> splitCommand = new ArrayList<String>(Arrays.asList(command.split("[\\s,]+")));
+        splitCommand.removeAll(Collections.singleton(""));
+        //if (splitCommand.isEmpty()) System.out.println(splitCommand + " is empty.");
         splitCommands.add(splitCommand);
+        for(String s: splitCommand) System.out.println("*"+s+"*");
         System.out.println(splitCommands.get(splitCommands.size()-1));
       }
     } catch (Exception e) {
@@ -62,194 +68,73 @@ public class ManoAssembler {
     }
     
     //First pass: associate labels with addresses
-    for (String command:originalCommands) {
-      
-      //Start writing commands at different address
-      if (command.contains("ORG")) {
-        //Grab new address (assumed to start after "ORG ")
-        int start = command.indexOf("ORG")+4;
-        int end = command.indexOf(" ", start);
-        if (end == -1) end = command.length();
-        int orgPos = Integer.parseInt(command.substring(start, end), 16);
-        reposition(orgPos);
+    System.out.println("Resolving addresses:");
+    for (ArrayList<String> splitCommand:splitCommands) {
+      if(splitCommand.isEmpty()) continue;
+      String thisWord = splitCommand.get(0);
+      if (!Symbol.isReserved(thisWord)) {
+        Symbol.addLabel(thisWord, currentAddress);
+        splitCommand.remove(thisWord);
       }
-      //If the current line is labelled
-      //(Labels are assumed to be followed by commas)
-      if (command.contains(",")) {
-        //Assign the label to the current memory address
-        String label = command.substring(0,command.indexOf(","));
-        System.out.println("Label: " + label + ", position: " + currentAddress);
-        labels.put(label, makeHexAddress(currentAddress));
+      thisWord = splitCommand.get(0);
+      //Start writing commands at different address
+      if (thisWord.equals("ORG")) {
+        int orgPos = Integer.parseInt(splitCommand.get(1), 16);
+        reposition(orgPos);
       }
       currentAddress++;
     }
     
     currentAddress = 0;
     //Second pass: generate hexCodes from commands
-    for (String command:originalCommands) {
-      //Ignore comments
-      if (command.contains("/")) {
-        command = command.substring(0, command.indexOf("/"));
-      }
-      //Trim ending whitespace
-      while(command.endsWith(" ")) {
-        command = command.substring(0, command.length()-1);
-      } 
+    for (ArrayList<String> splitCommand:splitCommands) {
+      if(splitCommand.size() == 0) continue;
       //Addressing mode
-      boolean isDirect = command.endsWith("I") ? false : true;
+      //boolean isDirect = command.endsWith("I") ? false : true;
       
-      String hexCode = ""; //Full 4-digit hex code for the current instruction
-      String address = ""; //3-bit hex code for the address, used for building memory-ref hexCodes
+      int hexCode = 0x0000;
+      //String hexCode = ""; //Full 4-digit hex code for the current instruction
+      //String address = ""; //3-bit hex code for the address, used for building memory-ref hexCodes
       
-      System.out.println("Command: " + command);
-      
+      System.out.println("Command: " + splitCommand);
+      String thisWord = splitCommand.get(0);
       //Change writing address
-      if (command.toUpperCase().contains("ORG")) {
-        int start = command.indexOf("ORG")+4;
-        int end = command.indexOf(" ", start);
-        if (end == -1) end = command.length();
-        int orgPos = Integer.parseInt(command.substring(start, end), 16);
+      if (thisWord.equals("ORG")) {
+        int orgPos = Integer.parseInt(splitCommand.get(1), 16);
         reposition(orgPos);
+        continue;
       }
-      // if (command.contains(",")) {
-        // String label = command.substring(0,command.indexOf(","));
-        // System.out.println("Label: " + label);
-      // }
-      
-      //Switch actual command to hex code
-      //Memory-reference instructions
-      if (command.contains("AND")) {
-        System.out.println("Command: AND");
-        //Generate opcode and I-bit
-        hexCode += (isDirect) ? "0" : "8";
-        //Convert label to address, if the label exists
-        address = resolveAddress(command, "AND");
-        if (address == null) {
-          //Invalid label; stop generating bytecode
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("ADD")) {
-        System.out.println("Command: ADD");
-        hexCode += (isDirect) ? "1" : "9";
-        address = resolveAddress(command, "ADD");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("LDA")) {
-        System.out.println("Command: LDA");
-        hexCode += (isDirect) ? "2" : "A";
-        address = resolveAddress(command, "LDA");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("STA")) {
-        System.out.println("Command: STA");
-        hexCode += (isDirect) ? "3" : "B";
-        address = resolveAddress(command, "STA");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("BUN")) {
-        System.out.println("Command: BUN");
-        hexCode += (isDirect) ? "4" : "C";
-        address = resolveAddress(command, "BUN");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("BSA")) {
-        System.out.println("Command: BSA");
-        hexCode += (isDirect) ? "5" : "D";
-        address = resolveAddress(command, "BSA");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      } else if (command.contains("ISZ")) {
-        System.out.println("Command: ISZ");
-        hexCode += (isDirect) ? "6" : "E";
-        address = resolveAddress(command, "ISZ");
-        if (address == null) {
-          System.out.println("Could not resolve address of the given label. Command:\n" + command);
-          return;
-        }
-        hexCode += address;
-      }
-      //Register-reference instructions
-      else if (command.contains("CLA")) {
-        hexCode = "7800";
-      } else if (command.contains("CLE")) {
-        hexCode = "7400";
-      } else if (command.contains("CMA")) {
-        hexCode = "7200";
-      } else if (command.contains("CME")) {
-        hexCode = "7100";
-      } else if (command.contains("CIR")) {
-        hexCode = "7080";
-      } else if (command.contains("CIL")) {
-        hexCode = "7040";
-      } else if (command.contains("INC")) {
-        hexCode = "7020";
-      } else if (command.contains("SPA")) {
-        hexCode = "7010";
-      } else if (command.contains("SNA")) {
-        hexCode = "7008";
-      } else if (command.contains("SZA")) {
-        hexCode = "7004";
-      } else if (command.contains("SZE")) {
-        hexCode = "7002";
-      } else if (command.contains("HLT")) {
-        hexCode = "7001";
-      }
-      //IO instructions
-      else if (command.contains("INP")) {
-        hexCode = "F800";
-      } else if (command.contains("OUT")) {
-        hexCode = "F400";
-      } else if (command.contains("SKI")) {
-        hexCode = "F200";
-      } else if (command.contains("SKO")) {
-        hexCode = "F100";
-      } else if (command.contains("ION")) {
-        hexCode = "F080";
-      } else if (command.contains("IOF")) {
-        hexCode = "F040";
-      }
-      //Numbers
-      if (command.contains("DEC")) {
-        //Convert decimal number to two's complement (hexidecimal representation)
-        hexCode = decToHex(command);
-      } else if (command.contains("HEX")) {
-        //Find actual number, assumed to start after "HEX "
-        int numberStartIndex = command.indexOf("HEX") + 4;
-        int numberEndIndex = command.indexOf(" ", numberStartIndex);
-        if (numberEndIndex == -1) numberEndIndex = command.length();
-        hexCode = command.substring(numberStartIndex, numberEndIndex);
-        //Pad with zeros to make into 16 bit number
-        while(hexCode.length() < 4) {
-          hexCode = "0" + hexCode; //TODO: Fix for padding negative numbers?
-        }
-        //Trim extra leading digits (i.e. FFFFF1B5 -> F1B5)
-        while(hexCode.length() > 4) {
-          hexCode = hexCode.substring(1,hexCode.length());
+      else if (Symbol.isCommand(thisWord)) {
+        Symbol s = Symbol.find(thisWord);
+        hexCode = s.value;
+        if (s.isMemoryReference()) {
+          Symbol label = Symbol.find(splitCommand.get(1));
+          hexCode += label.value;
+          if (splitCommand.indexOf("I") > 0) {
+            hexCode += 0x8000;
+          }
         }
       }
+      else if (thisWord.equals("DEC")) {
+        hexCode = Integer.parseInt(splitCommand.get(1));
+      }
+      else if (thisWord.equals("HEX")) {
+        hexCode = Integer.parseInt(splitCommand.get(1), 16);
+      }
+      String hexString = Integer.toHexString(hexCode).toUpperCase();
+      while (hexString.length() > 4) hexString = hexString.substring(1, hexString.length());
+      while (hexString.length() < 4) {
+        if (hexCode >= 0)
+          hexString = "0" + hexString;
+        else
+          hexString = "F" + hexString;
+      }
+      System.out.println("Hex string: " + hexString);
       //In case the arrayList is full, expand by adding XXXX
       while(hexCodes.size() <= currentAddress) {
       hexCodes.add("XXXX");
       }
-      //If a hexCode was made add it at the given address
-      if (hexCode.length() > 0) hexCodes.set(currentAddress, hexCode);
+      hexCodes.set(currentAddress, hexString);
       //Go to next address
       currentAddress++;
     }
@@ -262,8 +147,7 @@ public class ManoAssembler {
   }
   //Change position in code, make sure that the array is full up to that position
   private static void reposition(int position) {
-    //Set currentAddress to position-1 (because each loop increments position by 1 at the end)
-    currentAddress = position-1;
+    currentAddress = position;
     //Fill the array up until the position
     while(hexCodes.size() <= position) {
       hexCodes.add("XXXX");

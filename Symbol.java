@@ -19,8 +19,11 @@ public class Symbol {
     this.value = value;
   }
   
-  public makeIndirect() {
-    if(this.type == SymbolType.MEM) this.value += 0x8000;
+  public boolean isMemoryReference() {
+    if (this.type == SymbolType.MEM) {
+      return true;
+    }
+    return false;
   }
   
   static ArrayList<Symbol> table = new ArrayList<Symbol>();
@@ -92,5 +95,25 @@ public class Symbol {
   static void addLabel(String name, int value) {
     if(find(name) != null) remove(name);
     table.add(new Symbol(name, SymbolType.LABEL, value));
+  }
+  
+  static boolean isReserved(String name) {
+    Symbol s = find(name);
+    if (s != null) {
+      if (s.type == SymbolType.MEM || s.type == SymbolType.REG
+       || s.type == SymbolType.IO || s.type == SymbolType.OTHER) {
+        return true;
+      }
+        
+    }
+    return false;
+  }
+  static boolean isCommand(String name) {
+    Symbol s = find(name);
+    if (s != null) {
+      if (s.type == SymbolType.MEM || s.type == SymbolType.REG || s.type == SymbolType.IO)
+        return true;
+    }
+    return false;
   }
 }
