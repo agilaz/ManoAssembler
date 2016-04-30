@@ -1,17 +1,57 @@
 import java.util.*;
 import java.io.*;
+/*
+Line structure (ignoring comments):
+
+<Line> := <Label> <Statement> | <Statement> | λ
+
+<Statement> := <Command> | <Value> | <Org statement> | END
+
+<Org statement> := ORG <address>
+
+<Comand> := <Memory Instruction> <Label> | <Memory Instruction> <Label> I |
+          | <Register Instruction> | <IO Instruction>
+
+<Memory Instruction> := AND | ADD | LDA | STA | BUN | BSA | ISZ
+<Register Instruction> := CLA | CLE | CMA | CME | CIR | CIL | INC |
+                        | SPA | SNA | SZA | SZE | HLT
+<IO Instruction> := INP | OUT | SKI | SKO | ION | IOF
+
+<Label> := REGEX: [^\s,]+
+
+<Value> := DEC <dec number> | HEX <hex number>
+
+<Dec number> := REGEX: -?[0-9]+
+<Hex number> := REGEX: [0-9A-Fa-f]+
+
+<address> := REGEX: [0-9A-Fa-f]{3}
+*/
+
 public class ManoAssembler {
   static int currentAddress = 0;
-  static ArrayList<String> commands = new ArrayList<String>();
+  static ArrayList<String> originalCommands = new ArrayList<String>();
+  static ArrayList<ArrayList<String>> splitCommands = new ArrayList<ArrayList<String>>();
   static ArrayList<String> hexCodes = new ArrayList<String>();
   static HashMap<String, String> labels = new HashMap<String, String>();
   public static void main(String[] args) {
+    if(args.length < 1) {
+      System.out.println("Expected command-line argument; no input file specified.");
+      return;
+    }
+    String inputName = args[0];
     Scanner in = null;
     try {
-      in = new Scanner(new BufferedReader(new FileReader(args[0])));
-
+      in = new Scanner(new BufferedReader(new FileReader(inputName)));
       while (in.hasNextLine()) {
-          commands.add(in.nextLine());
+        String command = in.nextLine();
+        //commandsNew.add(new ArrayList<String>(Arrays.asList(in.nextLine().trim().split("[\\s,]+"))));
+        originalCommands.add(command);
+        command = command.trim();
+        if(command.contains("/"))
+          command = command.substring(0, command.indexOf("/"));
+        ArrayList<String> splitCommand = new ArrayList<String>(Arrays.asList(command.split("[\\s,]+")));
+        splitCommands.add(splitCommand);
+        System.out.println(splitCommands.get(splitCommands.size()-1));
       }
     } catch (Exception e) {
       e.printStackTrace();
@@ -22,7 +62,7 @@ public class ManoAssembler {
     }
     
     //First pass: associate labels with addresses
-    for (String command:commands) {
+    for (String command:originalCommands) {
       
       //Start writing commands at different address
       if (command.contains("ORG")) {
@@ -46,7 +86,7 @@ public class ManoAssembler {
     
     currentAddress = 0;
     //Second pass: generate hexCodes from commands
-    for (String command:commands) {
+    for (String command:originalCommands) {
       //Ignore comments
       if (command.contains("/")) {
         command = command.substring(0, command.indexOf("/"));
